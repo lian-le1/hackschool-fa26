@@ -9,22 +9,30 @@ const FALLBACK_WORDS = new Set(
 );
 
 const checkWord = async (req, res) => {
-    // TODO (Step 2): Read and store the word from the URL as a lowercase string
+    // Step 2: Read the word from the URL, as lowercase
+    const word = (req.params.word || "").toLowerCase();
 
-    // TODO (Step 3): Validate the input
+    // Step 3: Validate the input (must be exactly 5 letters)
+    if (!/^[a-z]{5}$/.test(word))
+        return res.status(400).json({ error: "Word must be exactly 5 letters." });
 
-    // TODO (Step 5a): Wrap Step 4 in try { ... } catch (err) { ... }
+    // Steps 4 + 5a: Ask the dictionary API, with a backup plan
+    try {
+        const response = await fetch(DICTIONARY_API + word, {
+            signal: AbortSignal.timeout(200),
+        });
 
-    /** TODO (Step 4): Call dictionary API
-     *  Send a request with fetch and WAIT for it with await.
-     */ 
+        // 200 = word exists, 404 = word doesn't exist
+        if (response.status === 200 || response.status === 404) {
+            const valid = response.status === 200;
+            return res.json({ word, valid, source: "api" });
+        }
+    } catch (err) {
+        console.error("Dictionary API request failed; using fallback word list:", err.message);
+    }
 
-    /** 
-     * TODO (Step 5b): Add fallback after try/catch
-     * If we reach this line, the dictionary API didn't give us an answer
-     * Check our local word list instead and respond with:
-     * { word, valid: <is the word in FALLBACK_WORDS?>, source: "fallback" }
-     */ 
+    // Step 5b: Fallback, check our own word list
+    res.json({ word, valid: FALLBACK_WORDS.has(word), source: "fallback" });
 };
 
 module.exports = { checkWord };
